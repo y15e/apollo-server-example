@@ -1,3 +1,5 @@
+import * as mongodb from 'mongodb'
+
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
@@ -8,40 +10,144 @@ import { graphqlExpress, graphiqlExpress } from 'graphql-server-express';
 import { execute, subscribe } from 'graphql'
 import { SubscriptionServer } from 'subscriptions-transport-ws';
 
-import schema from './schema';
-
 const PORT = 3020;
 const SUBSCRIPTIONS_PATH = '/subscriptions';
 
-var app = express();
+import { makeExecutableSchema } from 'graphql-tools';
 
-app.use(cors());
+// mongo
+const dbName = 'stream-test'
+const mongoUrl = 'mongodb://localhost:27018/' + dbName + '?readPreference=secondaryPreferred'
 
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+const mongoOptions = {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}
 
-app.use('/graphql', graphqlExpress({ schema }));
+const MongoClient = mongodb.MongoClient
+const client = new MongoClient(mongoUrl, mongoOptions)
 
-app.use('/graphiql', graphiqlExpress({
-  endpointURL: '/graphql',
-}));
+async function start() {
+  try {
+	
+	await client.connect()
+	
+	const db = client.db(dbName)
+	const collection = db.collection('items')
+	
+	const changeStreamIterator = collection.watch()
 
-const server = createServer(app)
-
-server.listen(PORT, () => {
-  console.log(`API Server is now running on http://localhost:${PORT}/graphql`)
-  console.log(`API Subscriptions server is now running on ws://localhost:${PORT}${SUBSCRIPTIONS_PATH}`)
-});
-
-// Subs
-SubscriptionServer.create(
-  {
-    schema,
-    execute,
-    subscribe,
-  },
-  {
-    server,
-    path: SUBSCRIPTIONS_PATH,
+	// schema
+	const typeDefs = [`
+  type Tag {
+    id: Int
+    label: String
+    type: String
   }
-);
+
+  type TagsPage {
+    tags: [Tag]
+    hasMore: Boolean
+  }
+
+  type Query {
+    hello: String
+    ping(message: String!): String
+    tags(type: String!): [Tag]
+    tagsPage(page: Int!, size: Int!): TagsPage
+    randomTag: Tag
+    lastTag: Tag
+  }
+
+  type Mutation {
+    addTag(type: String!, label: String!): Tag
+  }
+
+  type Subscription {
+    tagAdded(type: String!): Tag
+  }
+
+  schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+  }
+`];
+
+	const resolvers = {
+	  Query: {
+		hello(root, args, context) {
+		  return "Hello world!";
+		},
+	  },
+	  Mutation: {
+		addTag: async (root, { type, label }, context) => {
+		  console.log(`adding ${type} tag '${label}'`);
+		  const newTag = await Tags.addTag(type, label);
+		  pubsub.publish(TAGS_CHANGED_TOPIC, { tagAdded: newTag });
+		  return newTag;
+		},
+	  },
+	  Subscription: {
+		tagAdded: {
+		  subscribe: async function * () {
+			while (true) {
+			  const result = await changeStreamIterator.next()
+			  console.log(result.fullDocument)
+			  yield {
+				tagAdded: {
+				  ...result.fullDocument
+				}
+			  }
+			}
+		  }
+		}
+	  },
+	};
+	
+	const schema = makeExecutableSchema({
+	  typeDefs,
+	  resolvers,
+	});
+	
+	// express
+	var app = express();
+	
+	app.use(cors());
+	
+	app.use(bodyParser.urlencoded({ extended: true }));
+	app.use(bodyParser.json());
+	
+	app.use('/graphql', graphqlExpress({ schema }));
+	
+	app.use('/graphiql', graphiqlExpress({
+	  endpointURL: '/graphql',
+	}));
+	
+	const server = createServer(app)
+	
+	server.listen(PORT, () => {
+	  console.log(`http://localhost:${PORT}/graphql`)
+	  console.log(`ws://localhost:${PORT}${SUBSCRIPTIONS_PATH}`)
+	});
+	
+	// Subs
+	SubscriptionServer.create(
+	  {
+		schema,
+		execute,
+		subscribe,
+	  },
+	  {
+		server,
+		path: SUBSCRIPTIONS_PATH,
+	  }
+	);
+	
+  } catch (err) {
+	console.dir(err)
+  }
+}
+
+start()
+	

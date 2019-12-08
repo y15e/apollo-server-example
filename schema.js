@@ -74,10 +74,7 @@ const resolvers = {
   },
   Subscription: {
     tagAdded: {
-      subscribe: withFilter(
-        () => pubsub.asyncIterator(TAGS_CHANGED_TOPIC),
-        (payload, variables) => payload.tagAdded.type === variables.type,
-      ),
+      subscribe: () => pubsub.asyncIterator(TAGS_CHANGED_TOPIC)
     }
   },
 };
