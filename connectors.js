@@ -36,9 +36,11 @@ function fakeDelay (cb) {
 }
 
 export default {
+  
   getTags(type) {
-    return fakeDelay(() => _.filter(tags, tag => tag.type === type))
+    return tags
   },
+  
   getTagsPage(page, pageSize) {
     return fakeDelay(() => {
       const start = page * pageSize;
@@ -49,11 +51,14 @@ export default {
       };
     })
   },
+  
   getRandomTag() {
     return tags[Math.round(Math.random()*(tags.length - 1))];
   },
+  
   getLastTag() {
     return tags[tags.length - 1];
   },
+  
   addTag,
 };

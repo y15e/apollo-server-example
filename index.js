@@ -51,9 +51,7 @@ async function start() {
   }
 
   type Query {
-    hello: String
-    ping(message: String!): String
-    tags(type: String!): [Tag]
+    tags: [Tag]
     tagsPage(page: Int!, size: Int!): TagsPage
     randomTag: Tag
     lastTag: Tag
@@ -76,8 +74,14 @@ async function start() {
 
 	const resolvers = {
 	  Query: {
-		hello(root, args, context) {
-		  return "Hello world!";
+		tags(root, args, context) {
+		  return [
+			{
+			  id: 123,
+			  label: "hoo",
+			  type: "misc"
+			}
+		  ];
 		},
 	  },
 	  Mutation: {
@@ -93,7 +97,7 @@ async function start() {
 		  subscribe: async function * () {
 			while (true) {
 			  const result = await changeStreamIterator.next()
-			  console.log(result.fullDocument)
+			  console.log(result)
 			  yield {
 				tagAdded: {
 				  ...result.fullDocument

@@ -44,26 +44,33 @@ const typeDefs = [`
 `];
 
 const resolvers = {
+  
   Query: {
     hello(root, args, context) {
       return "Hello world!";
     },
+    
     ping(root, { message }, context) {
       return `Answering ${message}`;
     },
+    
     tags(root, { type }, context) {
       return Tags.getTags(type);
     },
+    
     tagsPage(root, { page, size }, context) {
       return Tags.getTagsPage(page, size);
     },
+    
     randomTag(root, args, context) {
       return Tags.getRandomTag();
     },
+    
     lastTag(root, args, context) {
       return Tags.getLastTag();
     },
   },
+  
   Mutation: {
     addTag: async (root, { type, label }, context) => {
       console.log(`adding ${type} tag '${label}'`);
@@ -72,6 +79,7 @@ const resolvers = {
       return newTag;
     },
   },
+  
   Subscription: {
     tagAdded: {
       subscribe: () => pubsub.asyncIterator(TAGS_CHANGED_TOPIC)
